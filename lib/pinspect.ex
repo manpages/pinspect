@@ -72,7 +72,18 @@ end
 
 defimpl Binary.PInspect, for: BitString do
   import Binary.PInspect.Utils
-  def inspect(string, opts) do 
+
+  @moduledoc """
+  Represents the binary either as a printable string with
+  double quote characters escaped or as an Elixir binary
+  representation.
+  """
+
+  def inspect(string, opts), do: do_inspect String.printable?(string), string, opts
+
+  ## Printable strings
+  
+  defp do_inspect(true, string, opts) do 
     width = Keyword.get opts, :width, :infinity
     if width == :infinity do
       string = escape string, ?"
@@ -81,6 +92,37 @@ defimpl Binary.PInspect, for: BitString do
       List.foldl t, escape(h, ?"), fn(x, acc) -> acc <> "<>\n" <> escape(x, ?") end
     end
   end
+
+  ## Bitstrings
+
+  defp do_inspect(false, bitstring, opts) do
+    "<<" <> each_bit(bitstring, Keyword.get(opts, :limit, :infinity)) <> ">>"
+  end
+
+  defp each_bit(_, 0) do
+    "..."
+  end
+
+  defp each_bit(<<h, t :: bitstring>>, counter) when t != <<>> do
+    integer_to_binary(h) <> "," <> each_bit(t, decrement(counter))
+  end
+
+  defp each_bit(<<h :: size(8)>>, _counter) do
+    integer_to_binary(h)
+  end
+
+  defp each_bit(<<>>, _counter) do
+    <<>>
+  end
+
+  defp each_bit(bitstring, _counter) do
+    size = bit_size(bitstring)
+    <<h :: size(size)>> = bitstring
+    integer_to_binary(h) <> "::size(" <> integer_to_binary(size) <> ")"
+  end
+
+  defp decrement(:infinity), do: :infinity                                                                                                                                            
+  defp decrement(counter),   do: counter - 1
 end
 
 defimpl Binary.PInspect, for: List do
@@ -88,7 +130,86 @@ defimpl Binary.PInspect, for: List do
 end
 
 defimpl Binary.PInspect, for: Atom do
-  def inspect(_,_), do: "Atom"
+  require Macro
+  import Binary.PInspect.Utils
+
+  @moduledoc """ 
+  Represents the atom as an Elixir term. The atoms false, true
+  and nil are simply quoted. Modules are properly represented
+  as modules using the dot notation.
+
+  Notice that in Elixir, all operators can be represented using
+  literal atoms (`:+`, `:-`, etc).
+
+  ## Examples
+
+      iex> inspect(:foo)
+      ":foo"
+      iex> inspect(nil)
+      "nil"
+      iex> inspect(Foo.Bar)
+      "Foo.Bar"
+
+  """
+
+  def inspect(false, _),  do: "false"
+  def inspect(true, _),   do: "true"
+  def inspect(nil, _),    do: "nil"
+  def inspect(:"", _),    do: ":\"\""
+  def inspect(Elixir, _), do: "Elixir"
+
+  def inspect(atom, _) do
+    binary = atom_to_binary(atom)
+
+    cond do
+      valid_atom_identifier?(binary) ->
+        ":" <> binary
+      valid_ref_identifier?(binary) ->
+        Module.to_binary(atom)
+      atom in Macro.binary_ops or atom in Macro.unary_ops ->
+        ":" <> binary
+      true ->
+        ":" <> escape(binary, ?") 
+    end 
+  end
+
+  # Detect if atom is an atom alias (Elixir-Foo-Bar-Baz)
+
+  defp valid_ref_identifier?("Elixir" <> rest) do
+    valid_ref_piece?(rest)
+  end
+
+  defp valid_ref_identifier?(_), do: false
+
+  defp valid_ref_piece?(<<?-, h, t :: binary>>) when h in ?A..?Z do
+    valid_ref_piece? valid_identifier?(t)
+  end
+
+  defp valid_ref_piece?(<<>>), do: true
+  defp valid_ref_piece?(_),    do: false
+
+  # Detect if string is a valid atom identifier
+
+  defp valid_atom_identifier?(<<h, t :: binary>>) when h in ?a..?z or h in ?A..?Z or h == ?_ do
+    case valid_identifier?(t) do
+      <<>>   -> true
+      <<??>> -> true
+      <<?!>> -> true
+      _      -> false
+    end
+  end
+
+  defp valid_atom_identifier?(_), do: false
+
+  defp valid_identifier?(<<h, t :: binary>>)
+      when h in ?a..?z
+      when h in ?A..?Z
+      when h in ?0..?9
+      when h == ?_ do
+    valid_identifier? t
+  end
+
+  defp valid_identifier?(other), do: other
 end
 
 defimpl Binary.PInspect, for: Number do
