@@ -26,17 +26,12 @@ end
 defimpl Binary.PInspect, for: BitString do
   import Binary.PInspect.Utils
   def inspect(string, opts) do 
-    offset = Keyword.get opts, :offset, 0
-    width = if w = Keyword.get(opts, :width), do: w - offset, else: :infinity
+    width = Keyword.get opts, :width, :infinity
     if width == :infinity do
       string = %b("#{string}")
     else 
-      if width > 0 do
-        [h|t] = Enum.reverse split_string(string, width)
-        List.foldr t, %b("#{h}"), fn(x, acc) -> %b("#{x}") <> "<>\n" <> acc end
-      else
-        :erlang.error "PInspect length overflow"
-      end
+      [h|t] = Enum.reverse split_string(string, width)
+      List.foldr t, %b("#{h}"), fn(x, acc) -> %b("#{x}") <> "<>\n" <> acc end
     end
   end
 end
