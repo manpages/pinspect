@@ -9,8 +9,25 @@ defprotocol Binary.PInspect do
   def inspect(thing, opts)
 end
 
+defmodule Binary.PInspect.Utils do
+  @spec split_string(binary, integer) :: [binary]
+  def split_string(string, width) do
+    do_split_string string, width, []
+  end
+
+  @spec do_split_string(binary | :nil, integer, binary) :: [binary]
+  defp do_split_string(nil, _, acc), do: acc
+  defp do_split_string(rem, width, acc) do 
+    length = String.length rem 
+    do_split_string String.slice(rem, 0, length-width), width, [String.slice(rem, -width, length)|acc]
+  end
+end
+
 defimpl Binary.PInspect, for: BitString do
-  def inspect(_,_), do: "BitString"
+  def inspect(string, opts) do 
+    opts
+    string
+  end
 end
 
 defimpl Binary.PInspect, for: List do
