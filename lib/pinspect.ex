@@ -16,17 +16,30 @@ defmodule Binary.PInspect.Utils do
   end
 
   @spec do_split_string(binary | :nil, integer, binary) :: [binary]
-  defp do_split_string(nil, _, acc), do: acc
+  defp do_split_string(nil, _, acc), do: Enum.reverse acc
   defp do_split_string(rem, width, acc) do 
     length = String.length rem 
-    do_split_string String.slice(rem, 0, length-width), width, [String.slice(rem, -width, length)|acc]
+    do_split_string String.slice(rem, width, length), width, [String.slice(rem, 0, width)|acc]
   end
 end
 
 defimpl Binary.PInspect, for: BitString do
+  import Binary.PInspect.Utils
   def inspect(string, opts) do 
-    opts
-    string
+    string = %b("#{string}")
+    offset = Keyword.get opts, :offset, 0
+    width = if w = Keyword.get(opts, :width), do: w - offset, else: :infinity
+    if width == :infinity do
+      string
+    else 
+      if width > 0 do
+        List.foldr split_string(string, width), "", fn(x, acc) -> 
+          x <> "\n" <> acc 
+        end
+      else
+        :erlang.error "PInspect length overflow"
+      end
+    end
   end
 end
 
