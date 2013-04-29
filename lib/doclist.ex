@@ -1,10 +1,10 @@
 defmodule Binary.DocList do
   @moduledoc """
-  `Binary.DocList` provides functions that take
-  Elixir terms as input and output document 
-  lists which in turn are intermediate term
-  representations for laying out the document
-  by `Binary.PInspect` implementations.
+  `Binary.DocList` provides functions that 
+  operate on document lists which in turn are 
+  intermediate term representations for laying 
+  out the documents by `Binary.PInspect` 
+  implementations.
   """
 
   defrecord T, prefix: "", body: "", postfix: "", meta: Keyword.new()
