@@ -84,15 +84,7 @@ defimpl Binary.PInspect, for: BitString do
 
   ## Printable strings
   
-  defp do_inspect(true, string, opts) do 
-    width = Keyword.get opts, :width, :infinity
-    if width == :infinity do
-      string = escape string, ?"
-    else 
-      [h|t] = split_string(string, width)
-      List.foldl t, escape(h, ?"), fn(x, acc) -> acc <> "<>\n" <> escape(x, ?") end
-    end
-  end
+  defp do_inspect(true, string, _), do: escape string, ?"
 
   ## Bitstrings
 

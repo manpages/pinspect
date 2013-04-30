@@ -21,8 +21,20 @@ defmodule Binary.DocList do
   def nest(document) do
     lc T[] = x inlist document do 
       x.prefix("  " <> x.prefix).meta(
-        Keyword.put x.meta, :nesting, Keyword.get(x.meta, :nesting, 0)+1
+        Keyword.put x.meta, :nesting, (x.meta[:nesting] || 0)+1
       )
+    end
+  end
+
+  @spec print([T.t]) :: binary
+  def print(document) do
+    List.foldl document, "", fn(T[] = l,acc) -> acc <> l.prefix <> l.body <> l.postfix end
+  end
+
+  @spec flatten([T.t]) :: [T.t]
+  def flatten([docfirst|doclines]) do
+    List.foldl doclines, T.new, fn(T[] = l, T[] = acc) ->
+      acc.body(acc.body<>l.body).postfix(l.postfix)
     end
   end
 end
