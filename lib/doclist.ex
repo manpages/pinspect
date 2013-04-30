@@ -19,7 +19,7 @@ defmodule Binary.DocList do
 
   @spec nest([T.t]) :: [T.t]
   def nest(document) do
-    lc x inlist document do 
+    lc T[] = x inlist document do 
       x.prefix("  " <> x.prefix).meta(
         Keyword.put x.meta, :nesting, Keyword.get(x.meta, :nesting, 0)+1
       )

@@ -72,6 +72,7 @@ end
 
 defimpl Binary.PInspect, for: BitString do
   import Binary.PInspect.Utils
+  import Binary.DocList
 
   @moduledoc """
   Represents the binary either as a printable string with
