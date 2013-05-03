@@ -8,7 +8,7 @@ defmodule Wadler do
   # introduced purely for homogenity of used entities
 
   # Records to work with variant document representation
-  # Those are generalized by `docset` type.
+  # Those are generalized by `docentity` type.
   defrecord TEXT, string: ""
   defrecord CONCAT, left: nil, right: nil
   defrecord UNION, left: nil, right: nil
@@ -16,15 +16,70 @@ defmodule Wadler do
   defrecord NIL, phony: 1
   defrecord LINE, phony: 1
 
-  # Records to carry data in the final document representation
-  # Those are generalized by `document` type.
+  # Records that represent finalized entities in a document
+  # Those are generalized by `docfactor` type.
   defrecord Text, string: "", rest: nil
   defrecord Line, indent: 0,  rest: nil
   defrecord Nil, phony: 1
 
+  # Functional interface to `docentity` records
+  def null, do: NIL.new
+  def concat(x, y), do: CONCAT[left: x, right: y]
+  def nest(i, x), do: NEST[indent: i, rest: x]
+  def text(s), do: TEXT[string: s]
+  def line, do: LINE.new
 
+  def group(x), do: UNION[left: flatten(x), right: x]
+
+  # Helpers
+  def s(x, y), do: concat(x, concat(" ", y))
+  def n(x, y), do: concat(x, concat(line, y))
+  def sn(x, y), do: concat(x, concat(UNION[left: text(" "), right: line], y))
+
+  def folddoc(_, []), do: null
+  def folddoc(_, [doc]), do: doc
+  def folddoc(f, [d|ds]), do: f.(d, folddoc(f, ds))
+
+  def spread(doc), do: folddoc(fn(x, d) -> s(x,d) end, doc)
+  def stack(doc),  do: folddoc(fn(x, d) -> n(x,d) end, doc)
+
+  # Collapse a list of documents into a reasonably formatted document
+  def fill([]), do: NIL.new
+  def fill([doc]), do: doc
+  def fill([x|[y|docs]]) do
+    UNION[left:  s(flatten(x), fill( [flatten(y)|docs] )),
+          right: n(x, fill( [y|docs] ))]
+  end
+  
+  def bracket(bracketl, doc, bracketr) do
+    group(
+      concat(
+             text(bracketl), 
+             concat(
+                    nest(2, concat(line, doc)),
+                    concat(line, bracketr)
+             )
+      )
+    )
+  end
+
+  # The pretty printing functoion
   def pretty(width, document), do: layout best(width, 0, document)
 
+  
+  # Private functions
+
+  # Flatten variant representation
+  # Terminals
+  defp flatten(NIL[]), do: NIL.new
+  defp flatten(TEXT[string: s]), do: TEXT[string: s]
+  defp flatten(LINE[]), do: TEXT[string: " "]
+  #
+  defp flatten(UNION[left: x, right: _]),  do: flatten x
+  defp flatten(CONCAT[left: x, right: y]), do: CONCAT[left: flatten(x), right: flatten(y)]
+  defp flatten(NEST[indent: i, rest: x]),  do: NEST[indent: i, rest: flatten(x)]
+
+  # Laying out finalized document
   defp layout(Nil[]), do: ""
   defp layout(Text[string: s, rest: x]), do: s <> layout x
   defp layout(Line[indent: i, rest: x]), do: "\n" <> String.duplicate " ", i <> layout x
@@ -65,4 +120,5 @@ defmodule Wadler do
   defp fits?(_____, Line[]),          do: true 
   defp fits?(delta, Text[string: s,
                            rest: x]), do: fits? delta - String.length(s), x
+
 end
