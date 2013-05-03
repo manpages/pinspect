@@ -32,7 +32,7 @@ defmodule Binary.DocList do
   end
 
   @spec flatten([T.t]) :: [T.t]
-  def flatten([docfirst|doclines]) do
+  def flatten([_docfirst|doclines]) do
     List.foldl doclines, T.new, fn(T[] = l, T[] = acc) ->
       acc.body(acc.body<>l.body).postfix(l.postfix)
     end
