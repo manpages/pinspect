@@ -13,21 +13,21 @@ defmodule Wadler do
   defrecord CONCAT, left: nil, right: nil
   defrecord UNION, left: nil, right: nil
   defrecord NEST, indent: 1, rest: nil
-  defrecord NIL, phony: 1
-  defrecord LINE, phony: 1
+  # NIL
+  # LINE
 
   # Records that represent finalized entities in a document
   # Those are generalized by `docfactor` type.
   defrecord Text, string: "", rest: nil
   defrecord Line, indent: 0,  rest: nil
-  defrecord Nil, phony: 1
+  # Nil
 
   # Functional interface to `docentity` records
-  def null, do: NIL.new
+  def null, do: NIL
   def concat(x, y), do: CONCAT[left: x, right: y]
   def nest(i, x), do: NEST[indent: i, rest: x]
   def text(s), do: TEXT[string: s]
-  def line, do: LINE.new
+  def line, do: LINE
 
   def group(x), do: UNION[left: flatten(x), right: x]
 
@@ -44,7 +44,7 @@ defmodule Wadler do
   def stack(doc),  do: folddoc(fn(x, d) -> n(x,d) end, doc)
 
   # Collapse a list of documents into a reasonably formatted document
-  def fill([]), do: NIL.new
+  def fill([]), do: NIL
   def fill([doc]), do: doc
   def fill([x|[y|docs]]) do
     UNION[left:  s(flatten(x), fill( [flatten(y)|docs] )),
@@ -57,7 +57,7 @@ defmodule Wadler do
              text(bracketl), 
              concat(
                     nest(2, concat(line, doc)),
-                    concat(line, bracketr)
+                    concat(line, text(bracketr))
              )
       )
     )
@@ -65,33 +65,38 @@ defmodule Wadler do
 
   # The pretty printing functoion
   def pretty(width, document), do: layout best(width, 0, document)
+  def pretty0(width, document), do: best width, 0, document
+  def pretty1(finalized), do: layout finalized
 
   
   # Private functions
 
   # Flatten variant representation
   # Terminals
-  defp flatten(NIL[]), do: NIL.new
+  defp flatten(NIL), do: NIL
   defp flatten(TEXT[string: s]), do: TEXT[string: s]
-  defp flatten(LINE[]), do: TEXT[string: " "]
+  defp flatten(LINE), do: TEXT[string: " "]
   #
   defp flatten(UNION[left: x, right: _]),  do: flatten x
   defp flatten(CONCAT[left: x, right: y]), do: CONCAT[left: flatten(x), right: flatten(y)]
   defp flatten(NEST[indent: i, rest: x]),  do: NEST[indent: i, rest: flatten(x)]
 
   # Laying out finalized document
-  defp layout(Nil[]), do: ""
-  defp layout(Text[string: s, rest: x]), do: s <> layout x
-  defp layout(Line[indent: i, rest: x]), do: "\n" <> String.duplicate " ", i <> layout x
+  defp layout(Nil), do: ""
+  defp layout(Text[string: s, rest: x]), do: s <> layout(x)
+  defp layout(Line[indent: i, rest: x]), do: "\n" <> copy(" ", i) <> layout(x)
+
+  defp copy(binary, 0), do: ""
+  defp copy(binary, i), do: String.duplicate binary, i
 
 
   # Choosing best layout
   defp best(width, start_pos, document), do: dobest width, start_pos, [{0,document}]
 
-  # Best layout of \varempty is nil
-  defp dobest(_, _, []), do: nil
+  # Best layout of \varempty is Nil
+  defp dobest(_, _, []), do: Nil
   # Ignore NIL layout
-  defp dobest(w, k, [{_,NIL[]}|z]), do: dobest w,k,z
+  defp dobest(w, k, [{_,NIL}|z]), do: dobest w,k,z
   # Expand CONCAT into two candidates
   defp dobest(w, k, [{i,CONCAT[left: x, right: y]}|z]) do 
     dobest w,k,[{i,x}|[{i,y}|z]]
@@ -105,7 +110,7 @@ defmodule Wadler do
     Text[string: s, rest: dobest w, k+String.length(s), z]
   end
   # Factor out LINE and make the indentation be initial caret position on the new line
-  defp dobest(w, _, [{i,LINE[]}|z]) do
+  defp dobest(w, _, [{i,LINE}|z]) do
     Line[indent: i, rest: dobest w, i, z]
   end
   # Choose better alternative from UNION
