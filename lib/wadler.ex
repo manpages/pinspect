@@ -4,46 +4,56 @@ defmodule Wadler do
   by Philip Wadler.
   """
 
-  # In the two next sections records `NIL`, `LINE` and `Nil` are 
-  # introduced purely for homogenity of used entities
-
   # Records to work with variant document representation
   # Those are generalized by `docentity` type.
+  # Note that function that returns atom NIL is called `null`
+  @type docentity :: TEXT.t | CONCAT.t | UNION.t | NEST.t | NIL | LINE
   defrecord TEXT, string: ""
   defrecord CONCAT, left: nil, right: nil
   defrecord UNION, left: nil, right: nil
   defrecord NEST, indent: 1, rest: nil
-  # NIL
-  # LINE
 
   # Records that represent finalized entities in a document
   # Those are generalized by `docfactor` type.
+  @type docfactor :: Text.t | Line.t | Nil
   defrecord Text, string: "", rest: nil
   defrecord Line, indent: 0,  rest: nil
-  # Nil
 
   # Functional interface to `docentity` records
+  @spec null() :: NIL
   def null, do: NIL
+  @spec concat(docentity, docentity) :: CONCAT.t
   def concat(x, y), do: CONCAT[left: x, right: y]
+  @spec concat(non_neg_integer, docentity) :: NEST.t
   def nest(i, x), do: NEST[indent: i, rest: x]
+  @spec text(binary) :: TEXT.t
   def text(s), do: TEXT[string: s]
+  @spec line() :: LINE
   def line, do: LINE
 
+  @spec group(docentity) :: UNION.t
   def group(x), do: UNION[left: flatten(x), right: x]
 
   # Helpers
-  def s(x, y), do: concat(x, concat(" ", y))
+  @spec s(docentity, docentity) :: CONCAT.t
+  def s(x, y), do: concat(x, concat(text(" "), y))
+  @spec s(docentity, docentity) :: CONCAT.t
   def n(x, y), do: concat(x, concat(line, y))
+  @spec s(docentity, docentity) :: CONCAT.t
   def sn(x, y), do: concat(x, concat(UNION[left: text(" "), right: line], y))
 
+  @spec folddoc( ((docentity, [docentity]) -> docentity), [docentity]) :: docentity
   def folddoc(_, []), do: null
   def folddoc(_, [doc]), do: doc
   def folddoc(f, [d|ds]), do: f.(d, folddoc(f, ds))
 
+  @spec spread(docentity) :: docentity
   def spread(doc), do: folddoc(fn(x, d) -> s(x,d) end, doc)
+  @spec stack(docentity) :: docentity
   def stack(doc),  do: folddoc(fn(x, d) -> n(x,d) end, doc)
 
   # Collapse a list of documents into a reasonably formatted document
+  @spec fill([docentity]) :: docentity
   def fill([]), do: NIL
   def fill([doc]), do: doc
   def fill([x|[y|docs]]) do
@@ -51,6 +61,7 @@ defmodule Wadler do
           right: n(x, fill( [y|docs] ))]
   end
   
+  @spec bracket(binary, docentity, binary) :: docentity
   def bracket(bracketl, doc, bracketr) do
     group(
       concat(
@@ -64,8 +75,11 @@ defmodule Wadler do
   end
 
   # The pretty printing functoion
+  @spec pretty(non_neg_integer, docentity) :: binary
   def pretty(width, document), do: layout best(width, 0, document)
+  @spec pretty0(non_neg_integer, docentity) :: docfactor
   def pretty0(width, document), do: best width, 0, document
+  @spec pretty1(docfactor) :: binary
   def pretty1(finalized), do: layout finalized
 
   
@@ -86,7 +100,7 @@ defmodule Wadler do
   defp layout(Text[string: s, rest: x]), do: s <> layout(x)
   defp layout(Line[indent: i, rest: x]), do: "\n" <> copy(" ", i) <> layout(x)
 
-  defp copy(binary, 0), do: ""
+  defp copy(_, 0), do: ""
   defp copy(binary, i), do: String.duplicate binary, i
 
 
