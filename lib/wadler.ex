@@ -32,14 +32,15 @@ defmodule Wadler do
   def line, do: LINE
 
   @spec group(docentity) :: UNION.t
-  def group(x), do: UNION[left: flatten(x), right: x]
+  def group(x),  do: UNION[left: flatten(x), right: x]
+  def group1(x), do: UNION[left: shrink(x),  right: x]
 
   # Helpers
-  @spec s(docentity, docentity) :: CONCAT.t
-  def s(x, y), do: concat(x, concat(text(" "), y))
-  @spec s(docentity, docentity) :: CONCAT.t
-  def n(x, y), do: concat(x, concat(line, y))
-  @spec s(docentity, docentity) :: CONCAT.t
+  @spec space(docentity, docentity) :: CONCAT.t
+  def space(x, y), do: concat(x, concat(text(" "), y))
+  @spec newline(docentity, docentity) :: CONCAT.t
+  def newline(x, y), do: concat(x, concat(line, y))
+  @spec sn(docentity, docentity) :: CONCAT.t
   def sn(x, y), do: concat(x, concat(UNION[left: text(" "), right: line], y))
 
   @spec folddoc( ((docentity, [docentity]) -> docentity), [docentity]) :: docentity
@@ -48,17 +49,17 @@ defmodule Wadler do
   def folddoc(f, [d|ds]), do: f.(d, folddoc(f, ds))
 
   @spec spread(docentity) :: docentity
-  def spread(doc), do: folddoc(fn(x, d) -> s(x,d) end, doc)
+  def spread(doc), do: folddoc(fn(x, d) -> space(x,d) end, doc)
   @spec stack(docentity) :: docentity
-  def stack(doc),  do: folddoc(fn(x, d) -> n(x,d) end, doc)
+  def stack(doc),  do: folddoc(fn(x, d) -> newline(x,d) end, doc)
 
   # Collapse a list of documents into a reasonably formatted document
   @spec fill([docentity]) :: docentity
   def fill([]), do: NIL
   def fill([doc]), do: doc
   def fill([x|[y|docs]]) do
-    UNION[left:  s(flatten(x), fill( [flatten(y)|docs] )),
-          right: n(x, fill( [y|docs] ))]
+    UNION[left:  space(flatten(x), fill( [flatten(y)|docs] )),
+          right: newline(x, fill( [y|docs] ))]
   end
   
   @spec bracket(binary, docentity, binary) :: docentity
@@ -85,15 +86,25 @@ defmodule Wadler do
   
   # Private functions
 
-  # Flatten variant representation
-  # Terminals
-  defp flatten(NIL), do: NIL
-  defp flatten(TEXT[string: s]), do: TEXT[string: s]
-  defp flatten(LINE), do: TEXT[string: " "]
-  #
+  # Flatten variant representation.
+  # Non-terminals
   defp flatten(UNION[left: x, right: _]),  do: flatten x
   defp flatten(CONCAT[left: x, right: y]), do: CONCAT[left: flatten(x), right: flatten(y)]
   defp flatten(NEST[indent: i, rest: x]),  do: NEST[indent: i, rest: flatten(x)]
+  # Terminals
+  defp flatten(NIL),                       do: NIL
+  defp flatten(TEXT[string: s]),           do: TEXT[string: s]
+  defp flatten(LINE),                      do: TEXT[string: " "]
+
+  # Shrink is flatten version that replaces newlines with NIL.
+  # Non-terminals
+  defp shrink(UNION[left: x, right: _]),   do: shrink x
+  defp shrink(CONCAT[left: x, right: y]),  do: CONCAT[left: shrink(x), right: shrink(y)]
+  defp shrink(NEST[indent: i, rest: x]),   do: NEST[indent: i, rest: shrink(x)]
+  # Terminals
+  defp shrink(LINE),                       do: NIL
+  # Other terminals are same as with flatten
+  defp shrink(x),                          do: flatten(x)
 
   # Laying out finalized document
   defp layout(Nil), do: ""
