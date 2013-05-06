@@ -12,6 +12,7 @@ defmodule Wadler do
   defrecord CONCAT, left: nil, right: nil
   defrecord UNION, left: nil, right: nil
   defrecord NEST, indent: 1, rest: nil
+  defrecord GLUE, string: "" 
 
   # Records that represent finalized entities in a document
   # Those are generalized by `docfactor` type.
@@ -30,6 +31,10 @@ defmodule Wadler do
   def text(s), do: TEXT[string: s]
   @spec line() :: LINE
   def line, do: LINE
+  @spec glue() :: GLUE.t
+  def glue(), do: GLUE[string: " "]
+  @spec glue(binary) :: GLUE.t
+  def glue(x) when is_binary(x), do: GLUE[string: x]
 
   @spec group(docentity) :: UNION.t
   def group(x),  do: UNION[left: flatten(x), right: x]
@@ -38,8 +43,8 @@ defmodule Wadler do
   # Helpers
   @spec space(docentity, docentity) :: CONCAT.t
   def space(x, y), do: concat(x, concat(text(" "), y))
-  @spec newline(docentity, docentity) :: CONCAT.t
-  def newline(x, y), do: concat(x, concat(line, y))
+  @spec line(docentity, docentity) :: CONCAT.t
+  def line(x, y), do: concat(x, concat(line, y))
   @spec sn(docentity, docentity) :: CONCAT.t
   def sn(x, y), do: concat(x, concat(UNION[left: text(" "), right: line], y))
 
@@ -51,7 +56,7 @@ defmodule Wadler do
   @spec spread(docentity) :: docentity
   def spread(doc), do: folddoc(fn(x, d) -> space(x,d) end, doc)
   @spec stack(docentity) :: docentity
-  def stack(doc),  do: folddoc(fn(x, d) -> newline(x,d) end, doc)
+  def stack(doc),  do: folddoc(fn(x, d) -> line(x,d) end, doc)
 
   # Collapse a list of documents into a reasonably formatted document
   @spec fill([docentity]) :: docentity
@@ -59,7 +64,7 @@ defmodule Wadler do
   def fill([doc]), do: doc
   def fill([x|[y|docs]]) do
     UNION[left:  space(flatten(x), fill( [flatten(y)|docs] )),
-          right: newline(x, fill( [y|docs] ))]
+          right: line(x, fill( [y|docs] ))]
   end
   
   @spec bracket(binary, docentity, binary) :: docentity
@@ -92,17 +97,19 @@ defmodule Wadler do
   defp flatten(CONCAT[left: x, right: y]), do: CONCAT[left: flatten(x), right: flatten(y)]
   defp flatten(NEST[indent: i, rest: x]),  do: NEST[indent: i, rest: flatten(x)]
   # Terminals
-  defp flatten(NIL),                       do: NIL
-  defp flatten(TEXT[string: s]),           do: TEXT[string: s]
   defp flatten(LINE),                      do: TEXT[string: " "]
+  defp flatten(GLUE[]),                    do: NIL
+  defp flatten(NIL),                       do: NIL
+  defp flatten(x = TEXT[]),                do: x
 
-  # Shrink is flatten version that replaces newlines with NIL.
+  # Shrink is flatten version that replaces lines with NIL.
   # Non-terminals
   defp shrink(UNION[left: x, right: _]),   do: shrink x
   defp shrink(CONCAT[left: x, right: y]),  do: CONCAT[left: shrink(x), right: shrink(y)]
   defp shrink(NEST[indent: i, rest: x]),   do: NEST[indent: i, rest: shrink(x)]
   # Terminals
   defp shrink(LINE),                       do: NIL
+  defp shrink(GLUE[]),                     do: NIL
   # Other terminals are same as with flatten
   defp shrink(x),                          do: flatten(x)
 
@@ -120,7 +127,7 @@ defmodule Wadler do
 
   # Best layout of \varempty is Nil
   defp dobest(_, _, []), do: Nil
-  # Ignore NIL layout
+  # Ignore NIL
   defp dobest(w, k, [{_,NIL}|z]), do: dobest w,k,z
   # Expand CONCAT into two candidates
   defp dobest(w, k, [{i,CONCAT[left: x, right: y]}|z]) do 
@@ -130,8 +137,11 @@ defmodule Wadler do
   defp dobest(w, k, [{i,NEST[indent: j, rest: x]}|z]) do 
     dobest w,k,[{i+j,x}|z]
   end
-  # Factor out TEXT and move caret accordingly
+  # Factor out TEXT or GLUE and move caret accordingly
   defp dobest(w, k, [{_,TEXT[string: s]}|z]) do 
+    Text[string: s, rest: dobest w, k+String.length(s), z]
+  end
+  defp dobest(w, k, [{_,GLUE[string: s]}|z]) do
     Text[string: s, rest: dobest w, k+String.length(s), z]
   end
   # Factor out LINE and make the indentation be initial caret position on the new line
